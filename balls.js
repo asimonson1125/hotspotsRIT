@@ -53,7 +53,7 @@ async function init() {
   counts.forEach((x) => countIds.push(x.mdo_id));
   locations = await (await locations).json();
 
-  pts = [];
+  pts = {};
   locations.forEach((x) => {
     const countsIndex = countIds.indexOf(parseInt(x.properties.mdo_id));
     // if (countsIndex !== -1) {
@@ -74,11 +74,11 @@ async function init() {
 
     if (countsIndex !== -1) {
       x.properties.count = counts[countsIndex].count;
-      pts.push(x);
+      pts[x.properties.mdo_id] = x;
     }
   });
 
-  let ptsLayer = L.geoJSON(pts, {
+  let ptsLayer = L.geoJSON(Object.values(pts), {
     pointToLayer: function (feature, latlng) {
       return L.circleMarker(latlng, geojsonMarkerOptions);
     },
@@ -95,7 +95,7 @@ async function init() {
 
   const features = ptsLayer.getLayers();
   for (let i = 0; i < features.length; i++) {
-    pts[i].properties.reference = features[i];
+    pts[Object.keys(pts)[i]].properties.reference = features[i];
   }
 }
 
@@ -134,6 +134,7 @@ function shootVector(from, to, {speed= 500, color= "red"} = {}) {
 }
 
 function getCoordArray(ref) {
+  if (ref.properties == undefined) return ref;
   let coords;
   try {
     coords = ref.properties.reference.getLatLng();
@@ -181,6 +182,28 @@ function arcGen(latlng1, latlng2, options = {}) {
   return curvedPath;
 }
 
+const space = [43.09224, -77.674799];
+async function getUpdate(){
+  console.log("Updating...");
+  let counts = await fetch("https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1");
+  counts = await counts.json();
+  for(let i = 0; i < counts.length; i++){
+    const pt = pts[counts[i].mdo_id];
+    if (pt == undefined) continue;
+    let newcount = counts[i].count
+    let oldcount = pt.properties.count;
+    if (newcount > oldcount){
+      shootVector(space, pt);
+    }
+    else if (newcount < oldcount) {
+      shootVector(pt, space);
+    }
+  }
+  console.log("updated.");
+}
+
 init().then(() => {
-  shootVector(pts[0], pts[1], {speed: 500});
+  // map.on('click', () => {shootVector(pts[3], pts[7])})
+  // shootVector(pts[0], pts[1], {speed: 500});
+  setInterval(getUpdate, 60000*5);
 });
