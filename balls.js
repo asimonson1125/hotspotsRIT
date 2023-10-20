@@ -16,8 +16,22 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function shuffleArray(arr) {
-  arr.sort(() => Math.random() - 0.5);
+function shuffle(array) {
+  let currentIndex = array.length,  randomIndex;
+
+  // While there remain elements to shuffle.
+  while (currentIndex > 0) {
+
+    // Pick a remaining element.
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+
+  return array;
 }
 
 function onEachFeature(feature, layer) {
@@ -209,7 +223,7 @@ function calcDistances(nodes) {
 
 const space = [43.09224, -77.674799];
 async function getUpdate() {
-  console.log("Updating...");
+  console.log("Updating Occupancy Matrix");
   let counts = await fetch(
     "https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1"
   );
@@ -223,12 +237,24 @@ async function getUpdate() {
   }
 
   let shots = getShots(Object.values(pts));
-  shuffleArray(shots);
-  for (let i = 0; i < shots.length; i++) {
-    await sleep(200);
-    shootVector(shots[i][0], shots[i][1], { speed: 100 });
+  shots = shuffle(shots);
+  const timeBetween = (60000*5+1)/shots.length;
+
+  // randomize time delay
+  let timeDelay = []
+  shots.forEach(() => {timeDelay.push(Math.random())});
+  let sum = 0;
+  timeDelay.forEach((x) => {sum += x});
+  const interval = 60000*5; // 5 minute delay
+  for (let i = 0; i < timeDelay.length; i++){
+    timeDelay[i] = timeDelay[i]/sum*interval;
   }
-  console.log("updated.");
+
+  console.log(`Shot total for next 5 minutes: ${shots.length} - ${timeBetween/1000} second intervals`)
+  for (let i = 0; i < shots.length; i++) {
+    await sleep(timeDelay[i]);
+    shootVector(shots[i][0], shots[i][1], { color: "orange" });
+  }
 }
 
 function findOneShot(nodes, i) {
