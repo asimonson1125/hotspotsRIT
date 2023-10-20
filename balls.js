@@ -17,18 +17,20 @@ function sleep(ms) {
 }
 
 function shuffle(array) {
-  let currentIndex = array.length,  randomIndex;
+  let currentIndex = array.length,
+    randomIndex;
 
   // While there remain elements to shuffle.
   while (currentIndex > 0) {
-
     // Pick a remaining element.
     randomIndex = Math.floor(Math.random() * currentIndex);
     currentIndex--;
 
     // And swap it with the current element.
     [array[currentIndex], array[randomIndex]] = [
-      array[randomIndex], array[currentIndex]];
+      array[randomIndex],
+      array[currentIndex],
+    ];
   }
 
   return array;
@@ -125,37 +127,28 @@ async function init() {
 // laid.remove()
 
 let bullets = L.layerGroup([]);
-function shootVector(from, to, { speed = 500, color = "red" } = {}) {
+async function shootVector(
+  from,
+  to,
+  { speed = 500, color = null, onlyAnimate = true, trail = true } = {}
+) {
   options = {
-    color: color,
+    onlyAnimate: onlyAnimate,
     animate: {
-      keyframes: [
-        {
-          // from
-          opacity: 0,
-          color: "#fff",
-        },
-        {
-          // to
-          opacity: 1,
-          color: "#000",
-        },
-      ],
       duration: speed,
     },
   };
+  if (color) options.color = color;
   const fromC = getCoordArray(from);
   const toC = getCoordArray(to);
-  eggman = arcGen(fromC, toC, (options = options));
-
-  // let coordinateArray = eggman.getLatLngs();
-  // var myMovingMarker = L.Marker.movingMarker(eggman.trace([0,.1,.2,.3,.4,.5,.6,.7,.8,.9,1]), 500);
-  // myMovingMarker.addTo(map);
-  // myMovingMarker.start();
-
-  options["color"] = "transparent";
-  options.animate.delay = 300;
   arcGen(fromC, toC, (options = options));
+
+  if (trail) {
+    options["color"] = "rgba(190, 95, 0, 0.2)";
+    options.fade = true;
+    options.fadeSpeed = 60000 * 5;
+    arcGen(fromC, toC, (options = options));
+  }
 }
 
 function getCoordArray(ref) {
@@ -191,7 +184,7 @@ function arcGen(latlng1, latlng2, options = {}) {
   latlngs.push(latlng1, midpointLatLng, latlng2);
 
   var pathDefaults = {
-    color: "red",
+    color: "#b35900",
     weight: 3,
     animate: 500,
     hasBalls: true,
@@ -238,23 +231,31 @@ async function getUpdate() {
 
   let shots = getShots(Object.values(pts));
   shots = shuffle(shots);
-  const timeBetween = (60000*5+1)/shots.length;
+  const timeBetween = (60000 * 5 + 1) / shots.length;
 
   // randomize time delay
-  let timeDelay = []
-  shots.forEach(() => {timeDelay.push(Math.random())});
-  let sum = 0;
-  timeDelay.forEach((x) => {sum += x});
-  const interval = 60000*5; // 5 minute delay
-  for (let i = 0; i < timeDelay.length; i++){
-    timeDelay[i] = timeDelay[i]/sum*interval;
+  let timeDelay = [];
+  shots.forEach(() => {
+    timeDelay.push(Math.random());
+  });
+  const interval = 60000 * 5; // 5 minute delay
+  for (let i = 0; i < timeDelay.length; i++) {
+    timeDelay[i] = timeDelay[i] * interval;
   }
 
-  console.log(`Shot total for next 5 minutes: ${shots.length} - ${timeBetween/1000} second intervals`)
+  console.log(
+    `Shot total for next 5 minutes: ${shots.length} - ${
+      timeBetween / 1000
+    } second intervals`
+  );
   for (let i = 0; i < shots.length; i++) {
-    await sleep(timeDelay[i]);
-    shootVector(shots[i][0], shots[i][1], { color: "orange" });
+    loadShot(shots[i], timeDelay[i], { trail: true });
   }
+}
+
+async function loadShot(shot, delay, { trail = false } = {}) {
+  await sleep(delay);
+  shootVector(shot[0], shot[1], { trail: trail });
 }
 
 function findOneShot(nodes, i) {
@@ -278,11 +279,15 @@ function getShots(nodes) {
     });
     noChange = true;
     for (let i = sourcesAndSinks.length - 1; i >= 0; i--) {
-      if (sourcesAndSinks[i].properties.changed) continue; // this node is a prior recipient this iteration
+      try {
+        if (sourcesAndSinks[i].properties.changed) continue; // this node is a prior recipient this iteration
+      } catch {
+        continue;
+      }
       let recipient = findOneShot(sourcesAndSinks, i);
       if (recipient) {
         let shotArr;
-        if (sourcesAndSinks[i].properties.diff > 0){
+        if (sourcesAndSinks[i].properties.diff > 0) {
           shotArr = [sourcesAndSinks[i], sourcesAndSinks[recipient]];
           sourcesAndSinks[i].properties.diff--;
           sourcesAndSinks[recipient].properties.diff++;
@@ -296,10 +301,13 @@ function getShots(nodes) {
         sourcesAndSinks[i].properties.changed = true;
         sourcesAndSinks[recipient].properties.changed = true;
 
+        let tmpRef = sourcesAndSinks[recipient];
         if (sourcesAndSinks[i].properties.diff == 0) {
           sourcesAndSinks.splice(i, 1);
         }
-        if (sourcesAndSinks[recipient].properties.diff == 0) {
+        if (
+          sourcesAndSinks[sourcesAndSinks.indexOf(tmpRef)].properties.diff == 0
+        ) {
           sourcesAndSinks.splice(recipient, 1);
         }
       }
@@ -323,7 +331,9 @@ function getShots(nodes) {
 }
 
 init().then(() => {
-  // map.on('click', () => {shootVector(pts[3], pts[7])})
+  // map.on("click", () => {
+  //   shootVector(pts[2], pts[8]);
+  // });
   // shootVector(pts[0], pts[1], {speed: 500});
   calcDistances(Object.values(pts));
   setInterval(getUpdate, 60000 * 5);
