@@ -12,6 +12,14 @@ var CartoDB_DarkMatterNoLabels = L.tileLayer(
   }
 ).addTo(map);
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shuffleArray(arr) {
+  arr.sort(() => Math.random() - 0.5);
+}
+
 function onEachFeature(feature, layer) {
   // does this feature have a property named popupContent?
   if (feature.properties && feature.properties.name) {
@@ -103,21 +111,24 @@ async function init() {
 // laid.remove()
 
 let bullets = L.layerGroup([]);
-function shootVector(from, to, {speed= 500, color= "red"} = {}) {
+function shootVector(from, to, { speed = 500, color = "red" } = {}) {
   options = {
     color: color,
-    animate: { keyframes: [
-      {
-        // from
-        opacity: 0,
-        color: "#fff",
-      },
-      {
-        // to
-        opacity: 1,
-        color: "#000",
-      },
-    ], duration: speed },
+    animate: {
+      keyframes: [
+        {
+          // from
+          opacity: 0,
+          color: "#fff",
+        },
+        {
+          // to
+          opacity: 1,
+          color: "#000",
+        },
+      ],
+      duration: speed,
+    },
   };
   const fromC = getCoordArray(from);
   const toC = getCoordArray(to);
@@ -128,9 +139,9 @@ function shootVector(from, to, {speed= 500, color= "red"} = {}) {
   // myMovingMarker.addTo(map);
   // myMovingMarker.start();
 
-  options['color'] = "transparent";
+  options["color"] = "transparent";
   options.animate.delay = 300;
-  arcGen(fromC, toC, options=options);
+  arcGen(fromC, toC, (options = options));
 }
 
 function getCoordArray(ref) {
@@ -169,7 +180,7 @@ function arcGen(latlng1, latlng2, options = {}) {
     color: "red",
     weight: 3,
     animate: 500,
-    hasBalls: true
+    hasBalls: true,
   };
 
   let pathOptions = Object.assign(pathDefaults, options);
@@ -182,28 +193,112 @@ function arcGen(latlng1, latlng2, options = {}) {
   return curvedPath;
 }
 
+function calcDistances(nodes) {
+  nodes.forEach((x) => {
+    x.properties.distances = {};
+    const coords1 = getCoordArray(x);
+    nodes.forEach((y) => {
+      const coords2 = getCoordArray(y);
+      x.properties.distances[y.properties.mdo_id] = Math.sqrt(
+        Math.pow(coords1[0] - coords2[0], 2) +
+          Math.pow(coords1[1] - coords2[1], 2)
+      );
+    });
+  });
+}
+
 const space = [43.09224, -77.674799];
-async function getUpdate(){
+async function getUpdate() {
   console.log("Updating...");
-  let counts = await fetch("https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1");
+  let counts = await fetch(
+    "https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1"
+  );
   counts = await counts.json();
-  for(let i = 0; i < counts.length; i++){
+
+  for (let i = 0; i < counts.length; i++) {
     const pt = pts[counts[i].mdo_id];
     if (pt == undefined) continue;
-    let newcount = counts[i].count
-    let oldcount = pt.properties.count;
-    if (newcount > oldcount){
-      shootVector(space, pt);
-    }
-    else if (newcount < oldcount) {
-      shootVector(pt, space);
-    }
+    pt.properties.diff = counts[i].count - pt.properties.count;
+    pt.properties.count = counts[i].count;
+  }
+
+  let shots = getShots(Object.values(pts));
+  shuffleArray(shots);
+  for (let i = 0; i < shots.length; i++) {
+    await sleep(200);
+    shootVector(shots[i][0], shots[i][1], { speed: 100 });
   }
   console.log("updated.");
+}
+
+function findOneShot(nodes, i) {
+  const sign = nodes[i].properties.diff > 0;
+  for (let x = 0; x < nodes.length; x++) {
+    if (nodes[x].properties.diff > 0 !== sign) {
+      return x;
+    }
+  }
+}
+
+function getShots(nodes) {
+  let noChange = false;
+  let shots = [];
+  let sourcesAndSinks = nodes.filter((x) => {
+    return x.properties.diff !== 0;
+  });
+  while (!noChange && sourcesAndSinks.length > 0) {
+    sourcesAndSinks.forEach((x) => {
+      x.properties.changed = false;
+    });
+    noChange = true;
+    for (let i = sourcesAndSinks.length - 1; i >= 0; i--) {
+      if (sourcesAndSinks[i].properties.changed) continue; // this node is a prior recipient this iteration
+      let recipient = findOneShot(sourcesAndSinks, i);
+      if (recipient) {
+        let shotArr;
+        if (sourcesAndSinks[i].properties.diff > 0){
+          shotArr = [sourcesAndSinks[i], sourcesAndSinks[recipient]];
+          sourcesAndSinks[i].properties.diff--;
+          sourcesAndSinks[recipient].properties.diff++;
+        } else {
+          shotArr = [sourcesAndSinks[recipient], sourcesAndSinks[i]];
+          sourcesAndSinks[i].properties.diff++;
+          sourcesAndSinks[recipient].properties.diff--;
+        }
+        shots.push(shotArr);
+        noChange = false;
+        sourcesAndSinks[i].properties.changed = true;
+        sourcesAndSinks[recipient].properties.changed = true;
+
+        if (sourcesAndSinks[i].properties.diff == 0) {
+          sourcesAndSinks.splice(i, 1);
+        }
+        if (sourcesAndSinks[recipient].properties.diff == 0) {
+          sourcesAndSinks.splice(recipient, 1);
+        }
+      }
+    }
+  }
+
+  // if no more people on campus, get them from space
+  sourcesAndSinks.forEach((x) => {
+    while (x.properties.diff > 0) {
+      shots.push([x, space]);
+      x.properties.diff--;
+    }
+
+    while (x.properties.diff < 0) {
+      shots.push([space, x]);
+      x.properties.diff++;
+    }
+  });
+
+  return shots;
 }
 
 init().then(() => {
   // map.on('click', () => {shootVector(pts[3], pts[7])})
   // shootVector(pts[0], pts[1], {speed: 500});
-  setInterval(getUpdate, 60000*5);
+  calcDistances(Object.values(pts));
+  setInterval(getUpdate, 60000 * 5);
 });
