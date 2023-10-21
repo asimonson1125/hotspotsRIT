@@ -62,43 +62,38 @@ const geojsonMarkerOptions = {
 
 const pointStyle = {};
 
+function removeDupPts(input) {
+  badOnes = [166]; // Nathan's (166) is a duplicate of Ben and Jerry's
+  for(let i = input.length - 1; i >= 0; i--){
+    if (badOnes.indexOf(input[i].mdo_id) >= 0) {
+      input.splice(i, 1);
+    }
+  }
+  return input;
+}
+
 let pts;
 async function init() {
   let counts = fetch(
     "https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1"
   );
-  let countIds = [];
 
   let locations = fetch(
     "https://maps.rit.edu/proxySearch/locations.search.php"
   );
 
-  counts = await (await counts).json();
-  counts.forEach((x) => countIds.push(x.mdo_id));
+  counts = Object.values(await (await counts).json());
+  counts = removeDupPts(counts);
   locations = await (await locations).json();
 
   pts = {};
   locations.forEach((x) => {
-    const countsIndex = countIds.indexOf(parseInt(x.properties.mdo_id));
-    // if (countsIndex !== -1) {
-    //   counts[countsIndex].coords = x.geometry.coordinates;
-    //   try {
-    //     if (typeof counts[countsIndex].coords[0] == "object") {
-    //       let lat = lon = 0;
-    //       counts[countsIndex].coords[0].forEach((pt) => {
-    //         lat += pt[0]
-    //         lon += pt[1]
-    //       });
-    //       lat /= counts[countsIndex].coords[0].length;
-    //       lon /= counts[countsIndex].coords[0].length;
-    //       counts[countsIndex].coords = [lat, lon];
-    //     }
-    //   } catch {}
-    // }
-
-    if (countsIndex !== -1) {
-      x.properties.count = counts[countsIndex].count;
-      pts[x.properties.mdo_id] = x;
+    for(let i = 0; i < counts.length; i++){
+      if (counts[i].mdo_id == x.properties.mdo_id){
+        x.properties.count = counts[i].count;
+        pts[x.properties.mdo_id] = x;
+        break;
+      }
     }
   });
 
@@ -146,7 +141,7 @@ async function shootVector(
   if (trail) {
     options["color"] = "rgba(190, 95, 0, 0.2)";
     options.fade = true;
-    options.fadeSpeed = 60000 * 5;
+    options.fadeSpeed = 60000 * 15;
     arcGen(fromC, toC, (options = options));
   }
 }
@@ -258,11 +253,17 @@ async function loadShot(shot, delay, { trail = false } = {}) {
   shootVector(shot[0], shot[1], { trail: trail });
 }
 
-function findOneShot(nodes, i) {
-  const sign = nodes[i].properties.diff > 0;
-  for (let x = 0; x < nodes.length; x++) {
-    if (nodes[x].properties.diff > 0 !== sign) {
-      return x;
+function findOneShot(nodes, target) {
+  let sortedByDistance = nodes.sort((a, b) => {
+    return (
+      target.properties.distances[a.properties.mdo_id] -
+      target.properties.distances[b.properties.mdo_id]
+    );
+  });
+  const sign = target.properties.diff > 0;
+  for (let x = 1; x < sortedByDistance.length; x++) {
+    if (sortedByDistance[x].properties.diff > 0 !== sign) {
+      return sortedByDistance[x];
     }
   }
 }
@@ -273,35 +274,39 @@ function getShots(nodes) {
   let sourcesAndSinks = nodes.filter((x) => {
     return x.properties.diff !== 0;
   });
+
+  let i;
   while (!noChange && sourcesAndSinks.length > 0) {
-    sourcesAndSinks.forEach((x) => {
-      x.properties.changed = false;
-    });
     noChange = true;
-    for (let i = sourcesAndSinks.length - 1; i >= 0; i--) {
-      try {
-        if (sourcesAndSinks[i].properties.changed) continue; // this node is a prior recipient this iteration
-      } catch {
-        continue;
-      }
-      let recipient = findOneShot(sourcesAndSinks, i);
+    // sourcesAndSinks.forEach((x) => {
+    //   x.properties.changed = false;
+    // });
+    // for (let i = sourcesAndSinks.length - 1; i >= 0; i--) {
+    //   try {
+    //     if (sourcesAndSinks[i].properties.changed) continue; // this node is a prior recipient this iteration
+    //   } catch {
+    //     continue;
+    //   }
+    let sorted = sourcesAndSinks.sort((a, b) => {Math.abs(a.properties.diff) - Math.abs(b.properties.diff)});
+    i = sourcesAndSinks.indexOf(sorted[0])
+      let recipient = findOneShot(sourcesAndSinks, sourcesAndSinks[i]);
       if (recipient) {
         let shotArr;
         if (sourcesAndSinks[i].properties.diff > 0) {
-          shotArr = [sourcesAndSinks[i], sourcesAndSinks[recipient]];
+          shotArr = [sourcesAndSinks[i], recipient];
           sourcesAndSinks[i].properties.diff--;
-          sourcesAndSinks[recipient].properties.diff++;
+          recipient.properties.diff++;
         } else {
-          shotArr = [sourcesAndSinks[recipient], sourcesAndSinks[i]];
+          shotArr = [recipient, sourcesAndSinks[i]];
           sourcesAndSinks[i].properties.diff++;
-          sourcesAndSinks[recipient].properties.diff--;
+          recipient.properties.diff--;
         }
         shots.push(shotArr);
         noChange = false;
         sourcesAndSinks[i].properties.changed = true;
-        sourcesAndSinks[recipient].properties.changed = true;
+        recipient.properties.changed = true;
 
-        let tmpRef = sourcesAndSinks[recipient];
+        let tmpRef = recipient;
         if (sourcesAndSinks[i].properties.diff == 0) {
           sourcesAndSinks.splice(i, 1);
         }
@@ -311,7 +316,7 @@ function getShots(nodes) {
           sourcesAndSinks.splice(recipient, 1);
         }
       }
-    }
+    // }
   }
 
   // if no more people on campus, get them from space
