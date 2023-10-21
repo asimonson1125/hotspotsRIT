@@ -62,12 +62,19 @@ const geojsonMarkerOptions = {
 
 const pointStyle = {};
 
-function removeDupPts(input) {
+function ritCustomize(input) {
   badOnes = [166]; // Nathan's (166) is a duplicate of Ben and Jerry's
   for(let i = input.length - 1; i >= 0; i--){
     if (badOnes.indexOf(input[i].mdo_id) >= 0) {
       input.splice(i, 1);
     }
+  }
+  return input;
+}
+
+function ritCustomizeCoords(input){
+  if (input.properties.name == "Beanz"){
+    input.geometry.coordinates = [-77.66904, 43.083876];
   }
   return input;
 }
@@ -83,7 +90,7 @@ async function init() {
   );
 
   counts = Object.values(await (await counts).json());
-  counts = removeDupPts(counts);
+  counts = ritCustomize(counts);
   locations = await (await locations).json();
 
   pts = {};
@@ -91,6 +98,7 @@ async function init() {
     for(let i = 0; i < counts.length; i++){
       if (counts[i].mdo_id == x.properties.mdo_id){
         x.properties.count = counts[i].count;
+        x = ritCustomizeCoords(x);
         pts[x.properties.mdo_id] = x;
         break;
       }
@@ -222,6 +230,7 @@ async function getUpdate() {
     if (pt == undefined) continue;
     pt.properties.diff = counts[i].count - pt.properties.count;
     pt.properties.count = counts[i].count;
+    pt.properties.reference.bindPopup(`${pt.properties.name}<br />Current Occupation: ${pt.properties.count}`)
   }
 
   let shots = getShots(Object.values(pts));
