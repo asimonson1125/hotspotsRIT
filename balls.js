@@ -2,15 +2,19 @@ let map = L.map("map", {
   zoomControl: false,
   attributionControl: false,
 }).setView([43.084405, -77.675486], 16);
-var CartoDB_DarkMatterNoLabels = L.tileLayer(
-  "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-  {
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: "abcd",
-    maxZoom: 20,
-  }
-).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+// var CartoDB_DarkMatterNoLabels = L.tileLayer(
+//   "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
+//   {
+//     attribution:
+//       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+//     subdomains: "abcd",
+//     maxZoom: 20,
+//   }
+// ).addTo(map);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,13 +40,24 @@ function shuffle(array) {
   return array;
 }
 
+function setMarker(attrs, ref) {
+  // let red = parseInt("ff", 16);
+  // let green = parseInt("78", 16);
+  // let style = {"fillColor": `#${red.toString(16)}${green.toString(16)}00`};
+  let ratio = attrs.properties.count / attrs.properties.capacity;
+  ratio = ratio > 1 ? 1 : ratio;
+  let red = 255 * ratio;
+  let style = {"fillColor": `rgba(${red}, 0, 0, ${ratio})`};
+  ref.setStyle(style);
+  ref.bindPopup(`${attrs.properties.name}<br />Current Occupation: ${attrs.properties.count}`);
+}
+
 function onEachFeature(feature, layer) {
   // does this feature have a property named popupContent?
-  if (feature.properties && feature.properties.name) {
-    layer.bindPopup(
-      `${feature.properties.name}<br />Current Occupation: ${feature.properties.count}`
-    );
+  if (!feature.properties || !feature.properties.name) {
+    return;
   }
+  setMarker(feature, layer);
 }
 
 const polyStyle = {
@@ -52,7 +67,7 @@ const polyStyle = {
 };
 
 const geojsonMarkerOptions = {
-  radius: 8,
+  radius: 5,
   fillColor: "#ff7800",
   color: "#000",
   weight: 1,
@@ -98,6 +113,7 @@ async function init() {
     for(let i = 0; i < counts.length; i++){
       if (counts[i].mdo_id == x.properties.mdo_id){
         x.properties.count = counts[i].count;
+        x.properties.capacity = counts[i].max_occ;
         x = ritCustomizeCoords(x);
         pts[x.properties.mdo_id] = x;
         break;
@@ -230,7 +246,7 @@ async function getUpdate() {
     if (pt == undefined) continue;
     pt.properties.diff = counts[i].count - pt.properties.count;
     pt.properties.count = counts[i].count;
-    pt.properties.reference.bindPopup(`${pt.properties.name}<br />Current Occupation: ${pt.properties.count}`)
+    setMarker(pt, pt.properties.reference);
   }
 
   let shots = getShots(Object.values(pts));
