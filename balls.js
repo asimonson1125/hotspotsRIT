@@ -1,7 +1,7 @@
 let map = L.map("map", {
   zoomControl: false,
   attributionControl: false,
-}).setView([43.084405, -77.675486], 16);
+}).setView([43.084679, -77.674702], 17);
 // L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 //     maxZoom: 19,
 //     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -60,9 +60,11 @@ function setMarker(attrs, ref) {
   let ratio = attrs.properties.count / attrs.properties.capacity;
   ratio = ratio > 1 ? 1 : ratio;
   let red = 255 * ratio;
-  let style = {"fillColor": `rgba(${red}, 0, 0, ${ratio})`};
+  let style = { fillColor: `rgba(${red}, 0, 0, ${ratio})` };
   ref.setStyle(style);
-  ref.bindPopup(`${attrs.properties.name}<br />Current Occupation: ${attrs.properties.count}`);
+  ref.bindPopup(
+    `${attrs.properties.name}<br />Current Occupation: ${attrs.properties.count}`
+  );
 }
 
 function onEachFeature(feature, layer) {
@@ -92,7 +94,7 @@ const pointStyle = {};
 
 function ritCustomize(input) {
   badOnes = [166]; // Nathan's (166) is a duplicate of Ben and Jerry's
-  for(let i = input.length - 1; i >= 0; i--){
+  for (let i = input.length - 1; i >= 0; i--) {
     if (badOnes.indexOf(input[i].mdo_id) >= 0) {
       input.splice(i, 1);
     }
@@ -100,11 +102,40 @@ function ritCustomize(input) {
   return input;
 }
 
-function ritCustomizeCoords(input){
-  if (input.properties.name == "Beanz"){
-    input.geometry.coordinates = [-77.66904, 43.083876];
-  }
-  return input;
+// Unused: "Campus", "Gleason_Engineering_Student_Area"
+const no_mdo_ids = {
+  Library_A_Level: { type: "Point", coordinates: [-77.676355, 43.083974] },
+  Library_1st_Floor: { type: "Point", coordinates: [-77.676355, 43.083874] },
+  Library_2nd_Floor: { type: "Point", coordinates: [-77.676355, 43.083774] },
+  Library_3rd_Floor: { type: "Point", coordinates: [-77.676355, 43.083674] },
+  Library_4th_Floor: { type: "Point", coordinates: [-77.676355, 43.083574] },
+  Ross_Hall: { type: "Point", coordinates: [-77.677937, 43.082379] },
+  Gordon_Field_House: { type: "Point", coordinates: [-77.671725, 43.085149] },
+  Golisano_Institute_for_Sustainability_Lobby: {
+    type: "Point",
+    coordinates: [-77.681365, 43.085376],
+  },
+};
+
+function ritCustomizeCoords(input) {
+  try {
+    if (input.properties.name == "Beanz") {
+      input.geometry.coordinates = [-77.66904, 43.083876];
+    }
+    return input;
+  } catch {}
+  try {
+    if (no_mdo_ids[input.location] == undefined) return;
+    let geojsonObj = {
+      geometry: no_mdo_ids[input.location],
+      properties: {
+        mdo_id: input.location,
+        name: input.location.replaceAll("_", " "),
+      },
+      type: "Feature",
+    };
+    return geojsonObj;
+  } catch {}
 }
 
 let pts;
@@ -123,13 +154,24 @@ async function init() {
 
   pts = {};
   locations.forEach((x) => {
-    for(let i = 0; i < counts.length; i++){
-      if (counts[i].mdo_id == x.properties.mdo_id){
+    for (let i = 0; i < counts.length; i++) {
+      if (counts[i].mdo_id == x.properties.mdo_id) {
         x.properties.count = counts[i].count;
-        x.properties.capacity = counts[i].max_occ;
+        x.properties.capacity = counts[i].max_occ == null ? 100 : counts[i].max_occ;
         x = ritCustomizeCoords(x);
         pts[x.properties.mdo_id] = x;
         break;
+      }
+    }
+  });
+
+  counts.forEach((x) => {
+    if (pts[x.mdo_id] == undefined) {
+      let geojson = ritCustomizeCoords(x);
+      if (geojson !== undefined) {
+        geojson.properties.count = x.count;
+        geojson.properties.capacity = x.max_occ == null ? 100 : x.max_occ;
+        pts[x.location] = geojson;
       }
     }
   });
@@ -151,7 +193,8 @@ async function init() {
 
   const features = ptsLayer.getLayers();
   for (let i = 0; i < features.length; i++) {
-    pts[Object.keys(pts)[i]].properties.reference = features[i];
+    const key = features[i].feature.properties.mdo_id;
+    pts[key].properties.reference = features[i];
   }
 }
 
@@ -255,7 +298,10 @@ async function getUpdate() {
   counts = await counts.json();
 
   for (let i = 0; i < counts.length; i++) {
-    const pt = pts[counts[i].mdo_id];
+    const pt =
+      counts[i].mdo_id == null
+        ? pts[counts[i].location]
+        : pts[counts[i].mdo_id];
     if (pt == undefined) continue;
     pt.properties.diff = counts[i].count - pt.properties.count;
     pt.properties.count = counts[i].count;
@@ -325,35 +371,37 @@ function getShots(nodes) {
     //   } catch {
     //     continue;
     //   }
-    let sorted = sourcesAndSinks.sort((a, b) => {Math.abs(a.properties.diff) - Math.abs(b.properties.diff)});
-    i = sourcesAndSinks.indexOf(sorted[0])
-      let recipient = findOneShot(sourcesAndSinks, sourcesAndSinks[i]);
-      if (recipient) {
-        let shotArr;
-        if (sourcesAndSinks[i].properties.diff > 0) {
-          shotArr = [sourcesAndSinks[i], recipient];
-          sourcesAndSinks[i].properties.diff--;
-          recipient.properties.diff++;
-        } else {
-          shotArr = [recipient, sourcesAndSinks[i]];
-          sourcesAndSinks[i].properties.diff++;
-          recipient.properties.diff--;
-        }
-        shots.push(shotArr);
-        noChange = false;
-        sourcesAndSinks[i].properties.changed = true;
-        recipient.properties.changed = true;
-
-        let tmpRef = recipient;
-        if (sourcesAndSinks[i].properties.diff == 0) {
-          sourcesAndSinks.splice(i, 1);
-        }
-        if (
-          sourcesAndSinks[sourcesAndSinks.indexOf(tmpRef)].properties.diff == 0
-        ) {
-          sourcesAndSinks.splice(recipient, 1);
-        }
+    let sorted = sourcesAndSinks.sort((a, b) => {
+      Math.abs(a.properties.diff) - Math.abs(b.properties.diff);
+    });
+    i = sourcesAndSinks.indexOf(sorted[0]);
+    let recipient = findOneShot(sourcesAndSinks, sourcesAndSinks[i]);
+    if (recipient) {
+      let shotArr;
+      if (sourcesAndSinks[i].properties.diff > 0) {
+        shotArr = [sourcesAndSinks[i], recipient];
+        sourcesAndSinks[i].properties.diff--;
+        recipient.properties.diff++;
+      } else {
+        shotArr = [recipient, sourcesAndSinks[i]];
+        sourcesAndSinks[i].properties.diff++;
+        recipient.properties.diff--;
       }
+      shots.push(shotArr);
+      noChange = false;
+      sourcesAndSinks[i].properties.changed = true;
+      recipient.properties.changed = true;
+
+      let tmpRef = recipient;
+      if (sourcesAndSinks[i].properties.diff == 0) {
+        sourcesAndSinks.splice(i, 1);
+      }
+      if (
+        sourcesAndSinks[sourcesAndSinks.indexOf(tmpRef)].properties.diff == 0
+      ) {
+        sourcesAndSinks.splice(recipient, 1);
+      }
+    }
     // }
   }
 
