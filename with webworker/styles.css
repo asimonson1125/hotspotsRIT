@@ -1,0 +1,25 @@
+body {
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+}
+
+#map {
+    height: 100vh;
+}
+
+html, body, #map {
+    height: 100%;
+    width: 100vw;
+}
+
+.leaflet-layer,
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out,
+.leaflet-control-attribution {
+    filter: brightness(500%) contrast(130%);
+}
+
+.leaflet-tile-pane {
+    filter: brightness(50%);
+}

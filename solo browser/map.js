@@ -309,7 +309,7 @@ async function getUpdate() {
   }
 
   let shots = getShots(Object.values(pts));
-  shots = shuffle(shots);
+  shots = shuffle(shuffle(shots));
   const timeBetween = (60000 * 5 + 1) / shots.length;
 
   // randomize time delay
