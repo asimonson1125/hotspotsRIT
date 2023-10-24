@@ -139,10 +139,9 @@ function ritCustomizeCoords(input) {
 }
 
 let pts;
+const densityMapUrl = "http://127.0.0.1:5000" // https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1
 async function init() {
-  let counts = fetch(
-    "https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1"
-  );
+  let counts = fetch(densityMapUrl + "/cached");
 
   let locations = fetch(
     "https://maps.rit.edu/proxySearch/locations.search.php"
@@ -292,9 +291,7 @@ function calcDistances(nodes) {
 const space = [43.09224, -77.674799];
 async function getUpdate() {
   console.log("Updating Occupancy Matrix");
-  let counts = await fetch(
-    "https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1"
-  );
+  let counts = await fetch(densityMapUrl + "/current");
   counts = await counts.json();
 
   for (let i = 0; i < counts.length; i++) {
@@ -427,5 +424,6 @@ init().then(() => {
   // });
   // shootVector(pts[0], pts[1], {speed: 500});
   calcDistances(Object.values(pts));
+  getUpdate()
   setInterval(getUpdate, 60000 * 5);
 });
