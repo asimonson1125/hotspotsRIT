@@ -82,6 +82,7 @@ const polyStyle = {
 };
 
 const geojsonMarkerOptions = {
+  pane: "nodePane",
   radius: 8,
   fillColor: "#ff7800",
   color: "#ff7800",
@@ -139,6 +140,9 @@ function ritCustomizeCoords(input) {
 }
 
 let pts;
+let nodePane = map.createPane("nodePane");
+nodePane.style.zIndex = "600";
+let nodeGroup;
 const densityMapUrl = "http://127.0.0.1:5000" // https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1
 async function init() {
   let counts = fetch(densityMapUrl + "/cached");
@@ -175,7 +179,8 @@ async function init() {
     }
   });
 
-  let ptsLayer = L.geoJSON(Object.values(pts), {
+  nodeGroup = L.geoJSON(Object.values(pts), {
+    pane: "nodePane",
     pointToLayer: function (feature, latlng) {
       return L.circleMarker(latlng, geojsonMarkerOptions);
     },
@@ -188,17 +193,28 @@ async function init() {
       }
     },
     onEachFeature: onEachFeature,
-  }).addTo(map);
+  });
+  nodeGroup.addTo(map);
+  nodeGroup.bringToFront()
 
-  const features = ptsLayer.getLayers();
+  const features = nodeGroup.getLayers();
   for (let i = 0; i < features.length; i++) {
     const key = features[i].feature.properties.mdo_id;
     pts[key].properties.reference = features[i];
   }
 }
 
-// let laid = L.geoJson(pts).addTo(map)
-// laid.remove()
+const space_coords = [43.09224, -77.674799];
+const UC_coords = [43.080361, -77.683296];
+const perkins_coords = [43.08616, -77.661796];
+function setSpace(features){
+  features.forEach((x) => {
+    const centroid = getCoordArray(x);
+    if (centroid[1] > -77.673157) {x.properties.space = perkins_coords}
+    else if (centroid[1] < -77.677503 && centroid[0] < 43.08395) {x.properties.space = UC_coords}
+    else {x.properties.space = space_coords}
+  })
+}
 
 let bullets = L.layerGroup([]);
 async function shootVector(
@@ -288,7 +304,7 @@ function calcDistances(nodes) {
   });
 }
 
-const space = [43.09224, -77.674799];
+
 async function getUpdate() {
   console.log("Updating Occupancy Matrix");
   let counts = await fetch(densityMapUrl + "/current");
@@ -405,12 +421,12 @@ function getShots(nodes) {
   // if no more people on campus, get them from space
   sourcesAndSinks.forEach((x) => {
     while (x.properties.diff > 0) {
-      shots.push([x, space]);
+      shots.push([x, x.properties.space]);
       x.properties.diff--;
     }
 
     while (x.properties.diff < 0) {
-      shots.push([space, x]);
+      shots.push([x.properties.space, x]);
       x.properties.diff++;
     }
   });
@@ -423,7 +439,9 @@ init().then(() => {
   //   shootVector(pts[2], pts[8]);
   // });
   // shootVector(pts[0], pts[1], {speed: 500});
-  calcDistances(Object.values(pts));
+  let ptsarr = Object.values(pts);
+  calcDistances(ptsarr);
+  setSpace(ptsarr);
   getUpdate()
   setInterval(getUpdate, 60000 * 5);
 });
