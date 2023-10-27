@@ -58,12 +58,12 @@ function setMarker(attrs, ref) {
   // let green = parseInt("78", 16);
   // let style = {"fillColor": `#${red.toString(16)}${green.toString(16)}00`};
   let ratio = attrs.properties.count / attrs.properties.capacity;
-  ratio = ratio > 1 ? 1 : ratio;
-  let red = 255 * ratio;
-  let style = { fillColor: `rgba(${red}, 0, 0, ${ratio})` };
+  let adjustedratio = ratio > 1 ? 1 : ratio;
+  let red = 255 * adjustedratio;
+  let style = { fillColor: `rgba(255, 0, 0, ${adjustedratio})` };
   ref.setStyle(style);
   ref.bindPopup(
-    `${attrs.properties.name}<br />Current Occupation: ${attrs.properties.count}`
+    `${attrs.properties.name}<br />Current Occupation: ${attrs.properties.count}<br />${Math.round(ratio*100)}% capacity`
   );
 }
 
@@ -143,8 +143,9 @@ let pts;
 let nodePane = map.createPane("nodePane");
 nodePane.style.zIndex = "600";
 let nodeGroup;
-const densityMapUrl = "http://127.0.0.1:5000" // https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1
-async function init() {
+const densityMapUrl = "http://127.0.0.1:5000"; // https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1
+
+async function init(legend = false) {
   let counts = fetch(densityMapUrl + "/cached");
 
   let locations = fetch(
@@ -160,7 +161,8 @@ async function init() {
     for (let i = 0; i < counts.length; i++) {
       if (counts[i].mdo_id == x.properties.mdo_id) {
         x.properties.count = counts[i].count;
-        x.properties.capacity = counts[i].max_occ == null ? 100 : counts[i].max_occ;
+        x.properties.capacity =
+          counts[i].max_occ == null ? 100 : counts[i].max_occ;
         x = ritCustomizeCoords(x);
         pts[x.properties.mdo_id] = x;
         break;
@@ -195,25 +197,62 @@ async function init() {
     onEachFeature: onEachFeature,
   });
   nodeGroup.addTo(map);
-  nodeGroup.bringToFront()
+  nodeGroup.bringToFront();
 
   const features = nodeGroup.getLayers();
   for (let i = 0; i < features.length; i++) {
     const key = features[i].feature.properties.mdo_id;
     pts[key].properties.reference = features[i];
   }
+
+  legend ? makeLegend() : null;
+}
+
+function makeLegend() {
+  let legend = L.control({ position: "bottomright" });
+
+  legend.onAdd = function (mapref) {
+    let div = L.DomUtil.create("div", "info legend");
+    div.innerHTML = "<div id='legendOccGrad'>Occupancy / Max Occupancy Gradient</div>"
+    div.innerHTML +=
+      `<p>Markers represent locations where data is collected<br />
+      Vectors represent the migration of aggregate occupation</br>
+      vectors to/from nodeless points involve locations not tracked by RIT</p>`;
+
+    return div;
+  };
+  
+  let statControl = L.control({ position: "topright" });
+
+  statControl.onAdd = function (mapref) {
+    let div = L.DomUtil.create("div", "info legend");
+    div.innerHTML = "<p>Occupancy is updated every 5 minutes<br /><br /><span id='shotCounter'></span><br />Next update in <span id='countdownClock'></span> seconds</p>"
+    return div;
+    //
+  };
+
+  statControl.addTo(map);
+  legend.addTo(map);
+}
+
+function updateLegend(shotcount=undefined){
+  document.getElementById('shotCounter').textContent = `Previous update created ${shotcount} migrations`;
 }
 
 const space_coords = [43.09224, -77.674799];
 const UC_coords = [43.080361, -77.683296];
 const perkins_coords = [43.08616, -77.661796];
-function setSpace(features){
+function setSpace(features) {
   features.forEach((x) => {
     const centroid = getCoordArray(x);
-    if (centroid[1] > -77.673157) {x.properties.space = perkins_coords}
-    else if (centroid[1] < -77.677503 && centroid[0] < 43.08395) {x.properties.space = UC_coords}
-    else {x.properties.space = space_coords}
-  })
+    if (centroid[1] > -77.673157) {
+      x.properties.space = perkins_coords;
+    } else if (centroid[1] < -77.677503 && centroid[0] < 43.08395) {
+      x.properties.space = UC_coords;
+    } else {
+      x.properties.space = space_coords;
+    }
+  });
 }
 
 let bullets = L.layerGroup([]);
@@ -304,9 +343,16 @@ function calcDistances(nodes) {
   });
 }
 
+let countdownTo;
+function updateCountdown() {
+  const now = new Date().getTime();
+  document.getElementById('countdownClock').textContent = Math.round((countdownTo - now) / 1000);
+}
 
 async function getUpdate() {
   console.log("Updating Occupancy Matrix");
+  countdownTo = new Date().getTime() + 5 * 60 * 1000;
+
   let counts = await fetch(densityMapUrl + "/current");
   counts = await counts.json();
 
@@ -340,6 +386,7 @@ async function getUpdate() {
       timeBetween / 1000
     } second intervals`
   );
+  updateLegend(shots.length);
   for (let i = 0; i < shots.length; i++) {
     loadShot(shots[i], timeDelay[i], { trail: true });
   }
@@ -434,7 +481,7 @@ function getShots(nodes) {
   return shots;
 }
 
-init().then(() => {
+init(true).then(() => {
   // map.on("click", () => {
   //   shootVector(pts[2], pts[8]);
   // });
@@ -442,6 +489,7 @@ init().then(() => {
   let ptsarr = Object.values(pts);
   calcDistances(ptsarr);
   setSpace(ptsarr);
-  getUpdate()
+  getUpdate();
+  setInterval(updateCountdown, 1000);
   setInterval(getUpdate, 60000 * 5);
 });
