@@ -239,9 +239,12 @@ function makeLegend() {
 }
 
 function updateLegend(shotcount = undefined) {
-  document.getElementById(
-    "shotCounter"
-  ).textContent = `Previous update created ${shotcount} migrations`;
+  if (!useLegend) return;
+  try {
+    document.getElementById(
+      "shotCounter"
+    ).textContent = `Previous update created ${shotcount} migrations`;
+  } catch {}
 }
 
 const space_coords = [43.09224, -77.674799];
@@ -285,17 +288,9 @@ async function shootVector(
 let trailers = [];
 let lastTrailerUpdate = new Date().getTime();
 async function updateTrailers(from = undefined, to = undefined) {
-  // We don't want this calculation killing the processor, so it can only happen once every 5 seconds
-  const now = new Date().getTime();
-  if (now - lastTrailerUpdate < 5000) {
-    return;
-  } else {
-    lastTrailerUpdate = now;
-  }
-
+  let found = false;
   if (from !== undefined && to !== undefined) {
     // check if vector already exists and increase count
-    let found = false;
     trailers.forEach((x) => {
       if (x.from == from && x.to == to) {
         found = true;
@@ -310,15 +305,23 @@ async function updateTrailers(from = undefined, to = undefined) {
     }
   }
 
+  // We don't want this calculation killing the processor, so it can only happen once every 5 seconds
+  // unless there's a new vector to the party so its opacity gets set
+  const now = new Date().getTime();
+  if (found && now - lastTrailerUpdate < 5000) {
+    return;
+  } else {
+    lastTrailerUpdate = now;
+  }
+
   // weight brightness of vectors
   let sum = 0;
   const trailCount = trailers.length;
-  let max = 0;
+  let max = 10;
   trailers.forEach((x) => {
     sum += x.count;
     if (x.count > max) max = x.count;
   });
-  if (max < 3) max = 5;
   trailers.forEach((x, i) => {
     let opacity = Math.sqrt(x.count / max);
     x.ref._path.style.opacity = opacity;
@@ -395,9 +398,11 @@ function updateCountdown() {
     countdownTo = now + 5 * 60 * 1000;
     getUpdate();
   }
-  document.getElementById("countdownClock").textContent = Math.floor(
-    countdown / 1000
-  );
+  try {
+    document.getElementById("countdownClock").textContent = Math.floor(
+      countdown / 1000
+    );
+  } catch {}
 }
 
 async function getUpdate() {
@@ -531,7 +536,9 @@ function getShots(nodes) {
   return shots;
 }
 
-init(true).then(() => {
+// const useLegend = window.location.pathname.replaceAll("/", "") == "hotspots";
+const useLegend = true;
+init(useLegend).then(() => {
   // map.on("click", () => {
   //   shootVector(pts[2], pts[8]);
   // });
