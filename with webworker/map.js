@@ -63,7 +63,9 @@ function setMarker(attrs, ref) {
   let style = { fillColor: `rgba(255, 0, 0, ${adjustedratio})` };
   ref.setStyle(style);
   ref.bindPopup(
-    `${attrs.properties.name}<br />Current Occupation: ${attrs.properties.count}<br />${Math.round(ratio*100)}% capacity`
+    `${attrs.properties.name}<br />Current Occupation: ${
+      attrs.properties.count
+    }<br />${Math.round(ratio * 100)}% capacity`
   );
 }
 
@@ -213,20 +215,21 @@ function makeLegend() {
 
   legend.onAdd = function (mapref) {
     let div = L.DomUtil.create("div", "info legend");
-    div.innerHTML = "<div id='legendOccGrad'>Occupancy / Max Occupancy Gradient</div>"
-    div.innerHTML +=
-      `<p>Markers represent locations where data is collected<br />
+    div.innerHTML =
+      "<div id='legendOccGrad'>Occupancy / Max Occupancy Gradient</div>";
+    div.innerHTML += `<p>Markers represent locations where data is collected<br />
       Vectors represent the migration of aggregate occupation</br>
       vectors to/from nodeless points involve locations not tracked by RIT</p>`;
 
     return div;
   };
-  
+
   let statControl = L.control({ position: "topright" });
 
   statControl.onAdd = function (mapref) {
     let div = L.DomUtil.create("div", "info legend");
-    div.innerHTML = "<p>Occupancy is updated every 5 minutes<br /><br /><span id='shotCounter'></span><br />Next update in <span id='countdownClock'></span> seconds</p>"
+    div.innerHTML =
+      "<p>Occupancy is updated every 5 minutes<br /><br /><span id='shotCounter'></span><br />Next update in <span id='countdownClock'></span> seconds</p>";
     return div;
     //
   };
@@ -235,8 +238,10 @@ function makeLegend() {
   legend.addTo(map);
 }
 
-function updateLegend(shotcount=undefined){
-  document.getElementById('shotCounter').textContent = `Previous update created ${shotcount} migrations`;
+function updateLegend(shotcount = undefined) {
+  document.getElementById(
+    "shotCounter"
+  ).textContent = `Previous update created ${shotcount} migrations`;
 }
 
 const space_coords = [43.09224, -77.674799];
@@ -273,11 +278,51 @@ async function shootVector(
   arcGen(fromC, toC, (options = options));
 
   if (trail) {
-    options["color"] = "rgba(190, 95, 0, 0.2)";
-    options.fade = true;
-    options.fadeSpeed = 60000 * 15;
-    arcGen(fromC, toC, (options = options));
+    updateTrailers(from, to);
   }
+}
+
+let trailers = [];
+let lastTrailerUpdate = new Date().getTime();
+async function updateTrailers(from = undefined, to = undefined) {
+  // We don't want this calculation killing the processor, so it can only happen once every 5 seconds
+  const now = new Date().getTime();
+  if (now - lastTrailerUpdate < 5000) {
+    return;
+  } else {
+    lastTrailerUpdate = now;
+  }
+
+  if (from !== undefined && to !== undefined) {
+    // check if vector already exists and increase count
+    let found = false;
+    trailers.forEach((x) => {
+      if (x.from == from && x.to == to) {
+        found = true;
+        x.count += 1;
+      }
+    });
+    if (!found) {
+      let newtrail = arcGen(getCoordArray(from), getCoordArray(to), {
+        color: "rgb(152,76, 0)",
+      });
+      trailers.push({ to: to, from: from, count: 1, ref: newtrail });
+    }
+  }
+
+  // weight brightness of vectors
+  let sum = 0;
+  const trailCount = trailers.length;
+  let max = 0;
+  trailers.forEach((x) => {
+    sum += x.count;
+    if (x.count > max) max = x.count;
+  });
+  if (max < 3) max = 5;
+  trailers.forEach((x, i) => {
+    let opacity = Math.sqrt(x.count / max);
+    x.ref._path.style.opacity = opacity;
+  });
 }
 
 function getCoordArray(ref) {
@@ -315,7 +360,6 @@ function arcGen(latlng1, latlng2, options = {}) {
   var pathDefaults = {
     color: "#b35900",
     weight: 3,
-    animate: 500,
     hasBalls: true,
   };
 
@@ -343,15 +387,21 @@ function calcDistances(nodes) {
   });
 }
 
-let countdownTo;
+let countdownTo = new Date().getTime() + 5 * 60 * 1000;
 function updateCountdown() {
   const now = new Date().getTime();
-  document.getElementById('countdownClock').textContent = Math.round((countdownTo - now) / 1000);
+  const countdown = countdownTo - now;
+  if (countdown < 1000) {
+    countdownTo = now + 5 * 60 * 1000;
+    getUpdate();
+  }
+  document.getElementById("countdownClock").textContent = Math.floor(
+    countdown / 1000
+  );
 }
 
 async function getUpdate() {
   console.log("Updating Occupancy Matrix");
-  countdownTo = new Date().getTime() + 5 * 60 * 1000;
 
   let counts = await fetch(densityMapUrl + "/current");
   counts = await counts.json();
@@ -491,5 +541,4 @@ init(true).then(() => {
   setSpace(ptsarr);
   getUpdate();
   setInterval(updateCountdown, 1000);
-  setInterval(getUpdate, 60000 * 5);
 });
