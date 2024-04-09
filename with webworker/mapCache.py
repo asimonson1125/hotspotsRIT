@@ -4,19 +4,27 @@ import flask
 import json
 from flask_cors import CORS
 
-delayed = {}
+delayed = []
 current = {}
+cachedShots = {}
 
 def updateCache():
     global delayed, current
     r = requests.get("https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1")
     if r.status_code == 200:
+        newData = dataAdjustments(r.json())
+        if newData == current:
+            print("No changes on this interval!")
+            return delayed, current
         if current == {}:
-            delayed = dataAdjustments(r.json())
+            delayed = [newData]
+        elif len(delayed) < 12:
+            delayed.append(json.loads(json.dumps(current)))
         else:
-            delayed = json.loads(json.dumps(current)) # deepcopy was returning a function for some reason
-        current = dataAdjustments(r.json())
-        print(delayed[2]['count'], current[2]['count'])
+            delayed = delayed[1:] + [json.loads(json.dumps(current))]
+        current = newData
+        print(delayed[-1][2]['count'], current[2]['count'])
+        print(len(delayed))
         return delayed, current
     else:
         print("FUCK!", r.status_code)
@@ -50,11 +58,19 @@ updateCache()
 set_interval(updateCache, 60*5)
 
 app = flask.Flask(__name__)
-CORS(app) # Remove me for security reasons
+# CORS(app) # Remove me for security reasons
+
+@app.route("/")
+def sample():
+    return flask.render_template("sample.html")
+
+@app.route("/shotCache")
+def getCachedShots():
+    return json.dumps(cachedShots)
 
 @app.route("/cached")
 def getCached():
-    return json.dumps(delayed)
+    return json.dumps(delayed[-1])
 
 @app.route("/current")
 def getLive():

@@ -145,7 +145,7 @@ let pts;
 let nodePane = map.createPane("nodePane");
 nodePane.style.zIndex = "600";
 let nodeGroup;
-const densityMapUrl = "http://127.0.0.1:5000"; // https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1
+const densityMapUrl = ""; // https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1
 
 async function init(legend = false) {
   let counts = fetch(densityMapUrl + "/cached");
@@ -536,8 +536,7 @@ function getShots(nodes) {
   return shots;
 }
 
-// const useLegend = window.location.pathname.replaceAll("/", "") == "hotspots";
-const useLegend = true;
+const useLegend = window.location.pathname.replaceAll("/", "") == "hotspots";
 init(useLegend).then(() => {
   // map.on("click", () => {
   //   shootVector(pts[2], pts[8]);

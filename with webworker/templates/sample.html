@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <head>
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename="styles.css")}}" />
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -12,10 +12,10 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-  <script src="./lib/leaflet-providers.js"></script>
-  <script src="./lib/CUSTOM.leaflet.curve.js"></script>
+  <script src="{{ url_for('static', filename="./lib/leaflet-providers.js")}}"></script>
+  <script src="{{ url_for('static', filename="./lib/CUSTOM.leaflet.curve.js")}}"></script>
 </head>
 <body>
   <div id="map"></div>
-  <script src="./map.js"></script>
+  <script src="{{ url_for('static', filename="map.js")}}"></script>
 </body>
