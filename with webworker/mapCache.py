@@ -3,13 +3,14 @@ import threading
 import flask
 import json
 from flask_cors import CORS
+from sourceSink import calcDistances, calculateShotsFromCache
 
 delayed = []
 current = {}
 cachedShots = {}
 
 def updateCache():
-    global delayed, current
+    global delayed, current, cachedShots
     r = requests.get("https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1")
     if r.status_code == 200:
         newData = dataAdjustments(r.json())
@@ -23,8 +24,9 @@ def updateCache():
         else:
             delayed = delayed[1:] + [json.loads(json.dumps(current))]
         current = newData
-        print(delayed[-1][2]['count'], current[2]['count'])
-        print(len(delayed))
+        # print(delayed[-1][2]['count'], current[2]['count']) # How many people at gracies in latest two intervals
+        # print(len(delayed)) # How many intervals are stored 
+        cachedShots = calculateShotsFromCache(delayed + [current])
         return delayed, current
     else:
         print("FUCK!", r.status_code)
@@ -55,6 +57,7 @@ def set_interval(func, sec):
     return t
 
 updateCache()
+nodeDict = calcDistances(current)
 set_interval(updateCache, 60*5)
 
 app = flask.Flask(__name__)
