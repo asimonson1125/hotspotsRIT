@@ -10,6 +10,7 @@ current = {}
 cachedShots = []
 loadedShots = {}
 nodeDict = {}
+locations = requests.get("https://maps.rit.edu/proxySearch/locations.search.php").json()
 
 def updateCache(updateShotCache=True):
     global delayed, current, cachedShots, loadedShots, nodeDict
@@ -78,6 +79,10 @@ def getCached():
 @app.route("/current")
 def getLive():
     return json.dumps(current)
+
+@app.route("/locations")
+def getLocations():
+    return json.dumps(locations)
 
 app.run()
 # Now we can get old data from the 'delayed' variable, data cached from 5 minutes ago

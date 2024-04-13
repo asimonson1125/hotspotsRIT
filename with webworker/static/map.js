@@ -151,7 +151,7 @@ async function init(legend = false) {
   let counts = fetch(densityMapUrl + "/cached");
 
   let locations = fetch(
-    "https://maps.rit.edu/proxySearch/locations.search.php"
+    densityMapUrl + "/locations"
   );
 
   counts = Object.values(await (await counts).json());
