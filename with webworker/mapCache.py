@@ -5,28 +5,26 @@ import json
 from flask_cors import CORS
 from sourceSink import calcDistances, calculateShotsFromCache
 
-delayed = []
+delayed = {}
 current = {}
-cachedShots = {}
+cachedShots = []
+loadedShots = {}
+nodeDict = {}
 
-def updateCache():
-    global delayed, current, cachedShots
+def updateCache(updateShotCache=True):
+    global delayed, current, cachedShots, loadedShots, nodeDict
     r = requests.get("https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1")
     if r.status_code == 200:
         newData = dataAdjustments(r.json())
-        if newData == current:
-            print("No changes on this interval!")
-            return delayed, current
+        # if newData == current:
+        #     print("No changes on this interval!")
+        #     return delayed, current
         if current == {}:
-            delayed = [newData]
-        elif len(delayed) < 12:
-            delayed.append(json.loads(json.dumps(current)))
+            delayed = json.loads(json.dumps(newData))
         else:
-            delayed = delayed[1:] + [json.loads(json.dumps(current))]
-        current = newData
-        # print(delayed[-1][2]['count'], current[2]['count']) # How many people at gracies in latest two intervals
-        # print(len(delayed)) # How many intervals are stored 
-        cachedShots = calculateShotsFromCache(delayed + [current])
+            delayed = json.loads(json.dumps(current))
+        current = json.loads(json.dumps(newData))
+        if updateShotCache: loadedShots, cachedShots = calculateShotsFromCache(current, delayed, nodeDict, cachedShots)
         return delayed, current
     else:
         print("FUCK!", r.status_code)
@@ -43,6 +41,7 @@ corrections = {
 }
 def dataAdjustments(data):
     for dp in data:
+        dp.pop('intra_loc_hours')
         if dp['location'] in corrections:
             for correction in corrections[dp['location']]:
                 dp[correction] = corrections[dp['location']][correction]
@@ -56,9 +55,10 @@ def set_interval(func, sec):
     t.start()
     return t
 
-updateCache()
+updateCache(False)
 nodeDict = calcDistances(current)
 set_interval(updateCache, 60*5)
+# updateCache() # Testing purposes
 
 app = flask.Flask(__name__)
 # CORS(app) # Remove me for security reasons
@@ -73,7 +73,7 @@ def getCachedShots():
 
 @app.route("/cached")
 def getCached():
-    return json.dumps(delayed[-1])
+    return json.dumps(delayed)
 
 @app.route("/current")
 def getLive():

@@ -1,5 +1,6 @@
 import requests
 from math import sqrt, pow
+import json
 
 def getCoordArray(ref):
     coords = ref['geometry']['coordinates']
@@ -7,8 +8,9 @@ def getCoordArray(ref):
         coords = coords[0][0] # TODO: Instead of using first edge point of polygons (as we are here), get centroid
     return coords
 
-def calcDistances(nodes):
+def calcDistances(input):
     # Used in initialization to calculate the distance between nodes
+    nodes = json.loads(json.dumps(input))
     usedNodes = []
     usedNodesDict = {}
     nodeDict = ritCustomize(nodes)
@@ -27,6 +29,8 @@ def calcDistances(nodes):
         for x in usedNodes:
             coords2 = getCoordArray(x)
             i['distances'][x['mdo_id']] = sqrt(pow(coords1[0] - coords2[0], 2) + pow(coords1[1] - coords2[1], 2))
+        i['distances'].pop(i['mdo_id'])
+        i['distances'] = {k: v for k, v in sorted(i['distances'].items(), key=lambda item: item[1])}
         usedNodesDict[i['mdo_id']] = i
     
     return usedNodesDict
@@ -62,29 +66,89 @@ def ritCustomize(input):
         
     return nodeDict
 
-space_coords = [43.09224, -77.674799];
-UC_coords = [43.080361, -77.683296];
-perkins_coords = [43.08616, -77.661796];
+# space_coords = [43.09224, -77.674799];
+# UC_coords = [43.080361, -77.683296];
+# perkins_coords = [43.08616, -77.661796];
 def setSpace(nodes):
     # Sets the default void for each node based on proximity
     for i in nodes:
         centroid = getCoordArray(i)
-        if centroid[1] > -77.673157:
-            i['space'] = perkins_coords
-        elif centroid[1] < -77.677503 and centroid[0] < 43.08395:
-            i['space'] = UC_coords
+        if centroid[0] > -77.673157:
+            i['space'] = 'perkins_coords'
+        elif centroid[0] < -77.677503 and centroid[1] < 43.08395:
+            i['space'] = 'UC_coords'
         else:
-            i['space'] = space_coords
+            i['space'] = 'space_coords'
     return nodes
 
-def calculateShotsFromCache(cache):
-    if len(cache) < 3:
-        return {} # Don't bother if there isn't much of a cache to run on
+def getShotTarget(nodeDict, sourceNode):
+    for nearestNode in nodeDict[sourceNode]['distances']:
+        if nodeDict[nearestNode]['diff'] > 0:
+            return nearestNode
+    return None
+
+def logShot(shots, source, target, shotcount=1):
+    shotcount = abs(shotcount)
+    if not source in shots.keys(): shots[source] = {}
+    if target in shots[source].keys(): shots[source][target] += shotcount
+    else: shots[source][target] = shotcount
+
+def calculateShotsFromCache(current, previous, nodes, cachedShots):
+    # Start by resetting node differences to 0
+    for i in nodes:
+        nodes[i]['diff'] = 0
+    
     shots = {}
-    for interval in range(len(cache)-1):
-        previous = cache[interval]
-        current = cache[interval+1]
-        pass
-        shotlist = ""
-        for shot in shotlist:
-            pass
+    # Get this interval's shots
+        # Start by getting the occupancy difference
+    for i in range(len(current)):
+        ref = False
+        if current[i]['mdo_id'] in nodes:
+            ref = nodes[current[i]['mdo_id']]
+        elif current[i]['location'] in nodes:
+            ref = nodes[current[i]['location']]
+        if ref:
+            ref['diff'] = current[i]['count'] - previous[i]['count']
+        
+    pass
+    sorted_nodes = sorted(nodes.values(), key=lambda item: -item['diff'])
+    
+        # Then shift until the differences are gone
+    while sorted_nodes[0]['diff'] > 0 and sorted_nodes[-1]['diff'] < 0:
+        # Find target
+        source = sorted_nodes[-1]['mdo_id']
+        target = getShotTarget(nodes, source)
+        
+        # Log shot occurence
+        logShot(shots, source, target)
+        
+        # adjust owed difference
+        nodes[source]['diff'] += 1
+        nodes[target]['diff'] -= 1
+        
+        # resort by owed count
+        sorted_nodes = sorted(nodes.values(), key=lambda item: item['diff'])
+    
+    # difference in campus occupancy comes from space
+    for node in reversed(sorted_nodes):
+        # Log shots to space
+        if node['diff'] <= 0: break
+        else:
+            logShot(shots, node['space'], node['mdo_id'], node['diff'])
+    for node in sorted_nodes:
+        # Log shots from space
+        if node['diff'] >= 0: break
+        else:
+            logShot(shots, node['mdo_id'], node['space'], node['diff'])
+    
+    cachedShots += [shots]
+    try:
+        cachedShots = cachedShots[-12] # Keep only the last 12 intervals
+    except: pass
+    
+    sumOfCached = {}
+    for interval in cachedShots:
+        for source, targets in interval.items():
+            for target, scale in targets.items():
+                logShot(sumOfCached, source, target, scale)
+    return sumOfCached, cachedShots
