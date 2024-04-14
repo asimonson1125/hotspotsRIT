@@ -549,7 +549,10 @@ function getShots(nodes) {
   return shots;
 }
 
-const useLegend = window.location.pathname.replaceAll("/", "") == "hotspots";
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString)
+const useLegend = urlParams.get("legend") == "true" ? true : false;
+
 init(useLegend).then(() => {
   // map.on("click", () => {
   //   shootVector(pts[2], pts[8]);
