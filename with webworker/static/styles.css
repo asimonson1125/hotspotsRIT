@@ -29,6 +29,7 @@ html, body, #map {
     color: #eee;
     background-color: rgba(44, 44, 44, .8);
     padding: 1em;
+    border-radius: 1em;
 }
 
 #legendOccGrad {

@@ -145,14 +145,12 @@ let pts;
 let nodePane = map.createPane("nodePane");
 nodePane.style.zIndex = "600";
 let nodeGroup;
-const densityMapUrl = "http://127.0.0.1:5000"; // https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1
+const densityMapUrl = ""; // https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1
 
 async function init(legend = false) {
   let counts = fetch(densityMapUrl + "/cached");
 
-  let locations = fetch(
-    "https://maps.rit.edu/proxySearch/locations.search.php"
-  );
+  let locations = fetch(densityMapUrl + "/locations");
 
   counts = Object.values(await (await counts).json());
   counts = ritCustomize(counts);
@@ -250,6 +248,7 @@ function updateLegend(shotcount = undefined) {
 const space_coords = [43.09224, -77.674799];
 const UC_coords = [43.080361, -77.683296];
 const perkins_coords = [43.08616, -77.661796];
+const spaceLocations = {perkins_coords:perkins_coords,UC_coords:UC_coords,space_coords:space_coords};
 function setSpace(features) {
   features.forEach((x) => {
     const centroid = getCoordArray(x);
@@ -287,21 +286,21 @@ async function shootVector(
 
 let trailers = [];
 let lastTrailerUpdate = new Date().getTime();
-async function updateTrailers(from = undefined, to = undefined) {
+async function updateTrailers(from = undefined, to = undefined, scale=1) {
   let found = false;
   if (from !== undefined && to !== undefined) {
     // check if vector already exists and increase count
     trailers.forEach((x) => {
       if (x.from == from && x.to == to) {
         found = true;
-        x.count += 1;
+        x.count += scale;
       }
     });
     if (!found) {
       let newtrail = arcGen(getCoordArray(from), getCoordArray(to), {
         color: "rgb(152,76, 0)",
       });
-      trailers.push({ to: to, from: from, count: 1, ref: newtrail });
+      trailers.push({ to: to, from: from, count: scale, ref: newtrail });
     }
   }
 
@@ -329,6 +328,7 @@ async function updateTrailers(from = undefined, to = undefined) {
 }
 
 function getCoordArray(ref) {
+  if (spaceLocations[ref] !== undefined) return spaceLocations[ref];
   if (ref.properties == undefined) return ref;
   let coords;
   try {
@@ -339,7 +339,7 @@ function getCoordArray(ref) {
   return [coords.lat, coords.lng];
 }
 
-function arcGen(latlng1, latlng2, options = {}) {
+function arcGen(latlng1, latlng2, options = {animated: true}) {
   var latlngs = [];
 
   var offsetX = latlng2[1] - latlng1[1],
@@ -363,7 +363,7 @@ function arcGen(latlng1, latlng2, options = {}) {
   var pathDefaults = {
     color: "#b35900",
     weight: 3,
-    hasBalls: true,
+    hasBalls: options.animated,
   };
 
   let pathOptions = Object.assign(pathDefaults, options);
@@ -467,6 +467,19 @@ function findOneShot(nodes, target) {
   }
 }
 
+async function getCachedShots() {
+  let req = await fetch(densityMapUrl + "/shotCache");
+  req = await req.json();
+  Object.entries(req).forEach(([source,targetDict]) => {
+    Object.entries(targetDict).forEach(([target, count]) => {
+      const sourcenode = (pts[source] == undefined) ? source : pts[source];
+      const targetnode = (pts[target] == undefined) ? target : pts[target];
+      updateTrailers(sourcenode, targetnode, count);
+    })
+  })
+  console.log("Loaded cached migrations");
+}
+
 function getShots(nodes) {
   let noChange = false;
   let shots = [];
@@ -536,8 +549,7 @@ function getShots(nodes) {
   return shots;
 }
 
-// const useLegend = window.location.pathname.replaceAll("/", "") == "hotspots";
-const useLegend = true;
+const useLegend = window.location.pathname.replaceAll("/", "") == "hotspots";
 init(useLegend).then(() => {
   // map.on("click", () => {
   //   shootVector(pts[2], pts[8]);
@@ -546,6 +558,7 @@ init(useLegend).then(() => {
   let ptsarr = Object.values(pts);
   calcDistances(ptsarr);
   setSpace(ptsarr);
+  getCachedShots();
   getUpdate();
   setInterval(updateCountdown, 1000);
 });
