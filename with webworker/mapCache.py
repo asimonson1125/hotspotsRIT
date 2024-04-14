@@ -5,11 +5,13 @@ import json
 from flask_cors import CORS
 from sourceSink import calcDistances, calculateShotsFromCache
 
-delayed = {}
-current = {}
-cachedShots = []
-loadedShots = {}
-nodeDict = {}
+delayed = {} # previous data
+current = {} # current data
+cachedShots = [] # array of dicts representing shotcount per interval
+loadedShots = {} # The sum of the shots in cachedShots
+nodeDict = {} # location dictionary
+
+# Store locations locally becuz RIT slow
 locations = requests.get("https://maps.rit.edu/proxySearch/locations.search.php").json()
 
 def updateCache(updateShotCache=True):
@@ -70,7 +72,7 @@ def sample():
 
 @app.route("/shotCache")
 def getCachedShots():
-    return json.dumps(cachedShots)
+    return json.dumps(loadedShots)
 
 @app.route("/cached")
 def getCached():
