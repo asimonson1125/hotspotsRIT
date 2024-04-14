@@ -2,7 +2,6 @@ import requests
 import threading
 import flask
 import json
-from flask_cors import CORS
 from sourceSink import calcDistances, calculateShotsFromCache
 
 delayed = {} # previous data
@@ -86,5 +85,6 @@ def getLive():
 def getLocations():
     return json.dumps(locations)
 
-app.run()
-# Now we can get old data from the 'delayed' variable, data cached from 5 minutes ago
+
+if __name__ == '__main__':
+    app.run()
