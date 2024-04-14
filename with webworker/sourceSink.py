@@ -59,7 +59,7 @@ def ritCustomize(input):
             continue
         if input[i]['location'] in no_coords:
             input[i]['geometry'] = no_coords[input[i]['location']]
-            input[i]['mdo_id'] = input[i]['location']
+            if input[i]['mdo_id'] == None: input[i]['mdo_id'] = input[i]['location']
         if input[i]['mdo_id'] == None:
             input[i]['mdo_id'] = input[i]['location']
         nodeDict[str(input[i]['mdo_id'])] = input[i]
@@ -127,15 +127,15 @@ def calculateShotsFromCache(current, previous, nodes, cachedShots):
         nodes[target]['diff'] -= 1
         
         # resort by owed count
-        sorted_nodes = sorted(nodes.values(), key=lambda item: item['diff'])
+        sorted_nodes = sorted(nodes.values(), key=lambda item: -item['diff'])
     
     # difference in campus occupancy comes from space
-    for node in reversed(sorted_nodes):
+    for node in sorted_nodes: # Save the most recent interval for live shots pre-first-update
         # Log shots to space
         if node['diff'] <= 0: break
         else:
             logShot(shots, node['space'], node['mdo_id'], node['diff'])
-    for node in sorted_nodes:
+    for node in reversed(sorted_nodes):
         # Log shots from space
         if node['diff'] >= 0: break
         else:
