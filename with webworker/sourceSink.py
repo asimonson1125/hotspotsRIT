@@ -142,9 +142,7 @@ def calculateShotsFromCache(current, previous, nodes, cachedShots):
             logShot(shots, node['mdo_id'], node['space'], node['diff'])
     
     cachedShots += [shots]
-    try:
-        cachedShots = cachedShots[-12] # Keep only the last 12 intervals
-    except: pass
+    cachedShots = cachedShots[-12:] # Keep only the last 12 intervals
     
     sumOfCached = {}
     for interval in cachedShots:

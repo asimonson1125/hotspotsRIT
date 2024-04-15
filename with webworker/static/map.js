@@ -551,7 +551,7 @@ function getShots(nodes) {
 
 const queryString = window.location.search;
 const urlParams = new URLSearchParams(queryString)
-const useLegend = urlParams.get("legend") == "true" ? true : false;
+const useLegend = urlParams.get("legend") == "false" ? false : true;
 
 init(useLegend).then(() => {
   // map.on("click", () => {
