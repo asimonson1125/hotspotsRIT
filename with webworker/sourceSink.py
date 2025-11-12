@@ -54,14 +54,14 @@ def ritCustomize(input):
     nodeDict = {}
     badOnes = [166]; # Nathan's (166) is a duplicate of Ben and Jerry's
     for i in range(len(input)-1, -1, -1):
-        if input[i]['mdo_id'] in badOnes or (input[i]['mdo_id'] == None and not (input[i]['location'] in no_coords)):
+        if input[i]['mdo_id'] in badOnes or (input[i]['mdo_id'] == None and not (input[i]['name'] in no_coords)):
             input.pop(i)
             continue
-        if input[i]['location'] in no_coords:
-            input[i]['geometry'] = no_coords[input[i]['location']]
-            if input[i]['mdo_id'] == None: input[i]['mdo_id'] = input[i]['location']
+        if input[i]['name'] in no_coords:
+            input[i]['geometry'] = no_coords[input[i]['name']]
+            if input[i]['mdo_id'] == None: input[i]['mdo_id'] = input[i]['name']
         if input[i]['mdo_id'] == None:
-            input[i]['mdo_id'] = input[i]['location']
+            input[i]['mdo_id'] = input[i]['name']
         nodeDict[str(input[i]['mdo_id'])] = input[i]
         
     return nodeDict
@@ -105,8 +105,8 @@ def calculateShotsFromCache(current, previous, nodes, cachedShots):
         ref = False
         if current[i]['mdo_id'] in nodes:
             ref = nodes[current[i]['mdo_id']]
-        elif current[i]['location'] in nodes:
-            ref = nodes[current[i]['location']]
+        elif current[i]['name'] in nodes:
+            ref = nodes[current[i]['name']]
         if ref:
             ref['diff'] = current[i]['count'] - previous[i]['count']
         

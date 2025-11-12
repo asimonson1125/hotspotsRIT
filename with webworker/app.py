@@ -15,7 +15,7 @@ locations = requests.get("https://maps.rit.edu/proxySearch/locations.search.php"
 
 def updateCache(updateShotCache=True):
     global delayed, current, cachedShots, loadedShots, nodeDict
-    r = requests.get("https://maps.rit.edu/proxySearch/densityMapDetail.php?mdo=1")
+    r = requests.get("https://maps.rit.edu/proxySearch/densityMap.php")
     if r.status_code == 200:
         newData = dataAdjustments(r.json())
         # if newData == current:
@@ -42,11 +42,12 @@ corrections = {
     "Gordon_Field_House": {"max_occ": 750}
 }
 def dataAdjustments(data):
+    data = [i['properties'] for i in data['busyness']]
     for dp in data:
-        dp.pop('intra_loc_hours')
-        if dp['location'] in corrections:
-            for correction in corrections[dp['location']]:
-                dp[correction] = corrections[dp['location']][correction]
+        location = dp['name']
+        if location in corrections:
+            for correction in corrections[location]:
+                dp[correction] = corrections[location][correction]
     return data
     
 def set_interval(func, sec):

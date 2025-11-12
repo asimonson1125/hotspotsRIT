@@ -2,10 +2,6 @@ let map = L.map("map", {
   zoomControl: false,
   attributionControl: false,
 }).setView([43.084679, -77.674702], 17);
-// L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-//     maxZoom: 19,
-//     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-// }).addTo(map);
 
 var CartoDB_DarkMatterNoLabels = L.tileLayer(
   "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
@@ -17,17 +13,8 @@ var CartoDB_DarkMatterNoLabels = L.tileLayer(
   }
 ).addTo(map);
 
-// var CartoDB_PositronNoLabels = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
-// 	attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-// 	subdomains: 'abcd',
-// 	maxZoom: 20
-// }).addTo(map); // good hacky filter: invert(100%) hue-rotate(180deg) brightness(100%) contrast(100%);
-
-// var CartoDB_Positron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-// 	attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-// 	subdomains: 'abcd',
-// 	maxZoom: 20
-// }).addTo(map);
+// Pretending to start self-hosted vector tiling for performance
+// https://grok.com/share/c2hhcmQtMw%3D%3D_fd9e73d5-8123-44f4-92f5-9a87008fa141
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
