@@ -1,3 +1,8 @@
+# DEFUNCT
+RIT no longer provides their location occupancy API that I referenced in this project.  Regrettably, I don't care enough about this project to find out why they stopped.  The changing schema a week before shutdown might have been a sign.
+
+In any case, this project is now non-functional and archived.
+
 # Hotspots @ RIT
 
 <img src='hotspotsrit.png' alt='A migration map of RIT' style="max-height:20em" />
